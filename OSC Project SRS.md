@@ -86,49 +86,49 @@ The system is a standalone backend service accessible through HTTP REST APIs.
 
 ## 3.1 Authentication & Users
 
-**FR-1** User registration
-**FR-2** User login
-**FR-3** Role-based authorization
+- **FR-1** User registration
+- **FR-2** User login
+- **FR-3** Role-based authorization
 
 ---
 
 ## 3.2 Products
 
-**FR-4** Seller can create product
-**FR-5** Seller can update product
-**FR-6** User can view products
+- **FR-4** Seller can create product
+- **FR-5** Seller can update product
+- **FR-6** User can view products
 
 ---
 
 ## 3.3 Orders
 
-**FR-7** Buyer can create order
-**FR-8** System validates product availability
-**FR-9** Order status tracking (Pending, Paid, Shipped, Cancelled)
+- **FR-7** Buyer can create order
+- **FR-8** System validates product availability
+- **FR-9** Order status tracking (Pending, Paid, Shipped, Cancelled)
 
 ---
 
 ## 3.4 Wallet
 
-**FR-10** Each user has wallet
-**FR-11** User can add balance
-**FR-12** Wallet balance deducted on purchase
-**FR-13** Wallet balance refunded on cancellation
+- **FR-10** Each user has wallet
+- **FR-11** User can add balance
+- **FR-12** Wallet balance deducted on purchase
+- **FR-13** Wallet balance refunded on cancellation
 
 ---
 
 ## 3.5 Transactions
 
-**FR-14** Every wallet change is recorded
-**FR-15** Transactions are immutable
-**FR-16** Payment operations shall be idempotent (Repeating the same payment request shall not result in duplicate charges)
+- **FR-14** Every wallet change is recorded
+- **FR-15** Transactions are immutable
+- **FR-16** Payment operations shall be idempotent (Repeating the same payment request shall not result in duplicate charges)
 
 ---
 
 ## 3.6 Notifications
 
-**FR-17** User receives notification after order placement
-**FR-18** User receives notification on refund
+- **FR-17** User receives notification after order placement
+- **FR-18** User receives notification on refund
 
 ---
 
@@ -209,23 +209,14 @@ The system is a standalone backend service accessible through HTTP REST APIs.
 
 ---
 
-# 7. Acceptance Criteria (Sample)
-
-**FR-7:**
-Given a buyer with sufficient balance,
-When creating an order,
-Then order is created and wallet balance decreases.
-
----
-
-# 8. Assumptions
+# 7. Assumptions
 
 * All payments handled internally
 * External payment gateway may be added later
 
 ---
 
-# 9. Future Enhancements
+# 8. Future Enhancements
 
 * Coupons
 * Multi-currency
