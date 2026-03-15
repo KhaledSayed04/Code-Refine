@@ -1,0 +1,172 @@
+### Quiz: Database Indexing & Query Optimization
+
+*Choose the best answer for each question.*
+
+---
+
+**1. What is the essential difference between an Index Scan and an Index‑Only Scan?**
+
+A) An Index Scan always uses a B‑Tree; an Index‑Only Scan uses a Hash index.  
+B) An Index‑Only Scan is faster only when the table fits entirely in RAM.  
+C) An Index Scan reads the table data after finding row pointers; an Index‑Only Scan gets all needed data directly from the index without touching the table.  
+D) An Index Scan requires a primary key; an Index‑Only Scan works with any index.
+
+**Answer: C**  
+*Explanation:* Index‑Only Scan means the index contains all columns required by the query, so the database can avoid the extra step of fetching the actual row from the table.
+
+---
+
+**2. In an `EXPLAIN (ANALYZE, BUFFERS)` output, you see `Buffers: shared hit=25 read=3`. What does this tell you?**
+
+A) The query returned 25 rows from cache and 3 rows from disk.  
+B) The query read 25 pages from PostgreSQL’s shared buffers (cache) and 3 pages from disk.  
+C) The query used 25 buffer hits and 3 buffer misses, meaning 3 rows were not found.  
+D) The query took 25 ms of CPU time and 3 ms of I/O time.
+
+**Answer: B**  
+*Explanation:* `shared hit` counts pages found in the shared buffer cache; `read` counts pages that had to be fetched from the operating system or disk.
+
+---
+
+**3. You have two separate indexes: one on `status` and one on `country`. A query filters on both columns: `WHERE status = 'pending' AND country = 'EG'`. The optimizer uses only the `status` index and applies a `Filter` for `country`. Why?**
+
+A) The `country` index is not usable because `country` appears after `status` in the query.  
+B) PostgreSQL cannot combine two separate indexes on the same table.  
+C) The `country` index is probably on a column with many NULLs, so it’s ignored.
+D) The optimizer estimated that scanning the `status` index and then filtering `country` in memory is cheaper than building and intersecting two bitmaps.  
+
+**Answer: D**  
+*Explanation:* The query optimizer uses cost estimates based on table statistics. It compares the cost of:
+- Using only the `status` index (fetching the matching rows from the heap, then discarding those that don't satisfy the `country` condition)
+- Using only the `country` index (fetching the matching rows from the heap, then discarding those that don't satisfy the `status` condition)
+- Using both indexes (building two bitmaps, intersecting them, then fetching only the final rows).
+
+---
+
+**4. When is a composite index (e.g., on `(country, status)`) generally better than two separate single‑column indexes?**
+
+A) When both columns are frequently used together in `WHERE` clauses, especially with equality conditions on the leading column.  
+B) When the table has more than 1 million rows.  
+C) When you need to support range queries on both columns simultaneously.  
+D) Composite indexes are never better than separate indexes; they just save disk space.
+
+**Answer: A**  
+*Explanation:* A composite index (e.g., on (`country`, `status`)) stores rows sorted first by `country`, then by `status` within each `country`.
+- Why A is correct: Composite indexes are most beneficial when queries frequently filter on both columns, especially with an equality condition on the leading column. For example, WHERE country = 'EG' AND status = 'pending' can use both columns efficiently. The leading column equality allows the index to narrow down to a specific country value, then within that, the second column can be used as an index condition (equality or range). This can even enable index‑only scans if all required columns are in the index.
+- Why C is incorrect: “Range queries on both columns simultaneously” (e.g., WHERE country BETWEEN 'EG' AND 'FR' AND status BETWEEN 'pending' AND 'shipped') is not efficiently supported by a standard B‑tree composite index. The index can use the first column for the range, but the second column’s condition becomes a filter applied after fetching rows, because desired rows in the index won't be contiguous, the status values are not globally sorted. To efficiently support multiple range conditions, you would need a different index type (e.g., GiST or SP‑GiST). Therefore, this is not a situation where a composite index is generally better than separate indexes
+```mermaid
+graph TD
+    Page1["Leaf Page 1<br/>(AR, cancelled) → (AR, delivered) → (AR, pending) → (AR, shipped)"]
+    Page2["Leaf Page 2<br/>(EG, cancelled) → (EG, delivered) → (EG, pending) → (EG, shipped)"]
+    Page3["Leaf Page 3<br/>(FR, cancelled) → (FR, delivered)"]
+    Page4["Leaf Page 4<br/>(FR, pending) → (FR, shipped)"]
+    Page5["Leaf Page 5<br/>(US, cancelled) → (US, delivered) → ..."]
+    Page1 --> Page2
+    Page2 --> Page3
+    Page3 --> Page4
+    Page4 --> Page5
+```
+> Remember: In B+-trees the executer reaches the first matching leaf then use read sequentially through the 'linked list' that connects the leaf nodes!
+
+---
+
+**5. Consider a query: `SELECT * FROM orders WHERE status = 'shipped' AND amount > 100`. You have indexes on `(status)` and `(amount)`. Suppose that status = 'shipped' applies to only 5% of the rows, while amount > 100 applies to 50% of the rows. Which execution plan is most likely to choose?**
+
+A) Use the `status` index (e.g., via a bitmap scan) and filter `amount` in memory.
+B) Use the `amount` index and filter `status` in memory.
+C) Use a bitmap combine of both indexes (`BitmapAnd`).
+D) Perform a sequential scan.
+
+**Answer: A**  
+*Explanation:* 
+- The `status` condition is highly selective (only 5% of rows). Using the index on `status` allows the database to quickly locate those few rows, then apply the `amount` filter in memory.
+- A bitmap combine would need to scan both indexes and then intersect, adding unnecessary overhead given that one index already narrows the result set dramatically.
+Thus, the optimizer picks the plan based on the most selective index – in this case, `status`.
+
+---
+
+**6. True or false: “An index on a boolean column (e.g., `is_active`) is never useful.”**
+
+A) True, because boolean columns have only two values, so an index can’t be selective. 
+B) False, but only if the column is indexed together with another column.   
+C) False, because if 95% of rows are `true` and you often query for `false`, the index on `false` can be very efficient (especially if it’s a partial index).  
+D) True, because PostgreSQL does not allow indexes on boolean columns.
+
+**Answer: C**  
+*Explanation:* A boolean column with highly skewed distribution can still benefit from an index, especially a partial index that only includes the rare value.
+
+---
+
+**7. Which index type is best suited for a range query like `WHERE price BETWEEN 100 AND 200`?**
+
+A) Hash index  
+B) B‑Tree index  
+C) Bitmap index  
+D) GIN index
+
+**Answer: B**  
+*Explanation:* B‑Tree indexes maintain sorted order and support range scans efficiently. Hash indexes only support equality.
+
+---
+
+**8. In an `EXPLAIN` plan, what does the `rows` estimate (e.g., `rows=5000`) represent?**
+
+A) The actual number of rows returned by that step.  
+B) The number of disk pages that will be read.  
+C) The planner’s guess of how many rows will be produced, based on table statistics.  
+D) The maximum number of rows the step can handle before spilling to disk.
+
+**Answer: C**  
+*Explanation:* The `rows` estimate is the planner’s prediction using statistics; it may differ from the actual rows (shown later if `ANALYZE` is used).
+
+---
+
+**9. Over‑indexing (creating many indexes on a table) can negatively affect performance primarily because:**
+
+A) Indexes cannot be used together in a single query.  
+B) INSERT and DELETE must update every index; UPDATE must update any indexes on the modified columns. All increase write latency.
+C) Indexes consume CPU but not I/O, causing CPU bottlenecks.  
+D) The query planner becomes confused and always chooses sequential scans.
+
+**Answer: B**  
+*Explanation:* Every write operation must maintain all indexes, so more indexes mean higher write overhead.
+
+---
+
+**10. What is the main performance benefit of horizontal partitioning (e.g., range partitioning on `order_date`) for a query that filters by a specific month?**
+
+A) The data is automatically distributed across multiple servers, allowing parallel queries.  
+B) Each partition has its own indexes, which are smaller and faster.  
+C) The optimizer can skip entire partitions that don’t match the condition (partition pruning), reducing the amount of data scanned.  
+D) Partitioning eliminates the need for any indexes.
+
+**Answer: C**  
+*Explanation:* Partition pruning allows the database to avoid scanning partitions that cannot contain matching rows, which can dramatically reduce I/O.
+
+---
+
+**11. Which query could benefit from an index on (user_id, order_date DESC)?**
+
+A) SELECT * FROM orders WHERE user_id = 42 ORDER BY order_date DESC LIMIT 10
+B) SELECT * FROM orders WHERE order_date > '2024-01-01'
+C) SELECT * FROM orders WHERE user_id != 42
+D) SELECT * FROM orders ORDER BY order_date DESC
+
+**Answer: A**  
+*Explanation:* A composite B-tree index on (`user_id, order_date DESC`) stores rows ordered first by `user_id`, and within each `user_id` group by `order_date` in descending order. For the query `WHERE user_id = 42 ORDER BY order_date DESC LIMIT 10`, the optimizer can jump directly to the `user_id = 42` section of the index and then read the entries in the correct order without performing a separate sort. Because the rows are already sorted, the database can stop as soon as it reads the first 10 matching entries, making the query very efficient.
+
+---
+
+### Answer Key (for Google Form)
+
+1.  C
+2.  B
+3.  D
+4.  A
+5.  A
+6.  C
+7.  B
+8.  C
+9.  B
+10. C
+11. A
